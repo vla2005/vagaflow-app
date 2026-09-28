@@ -17,6 +17,7 @@ import HomeDashboard from './components/HomeDashboard.jsx';
 import JobDetail from './components/JobDetail.jsx';
 import JobsPipeline from './components/JobsPipeline.jsx';
 import NotificationSettings from './components/NotificationSettings.jsx';
+import { useToast } from './components/ToastProvider.jsx';
 import { notificationStatus, syncAppBadge } from './pushNotifications.js';
 
 const initialValues = {
@@ -74,6 +75,7 @@ function FormField({ label, name, type = 'text', icon: Icon, value, onChange, er
 }
 
 function AuthView({ mode, onModeChange, onAuthenticated }) {
+  const toast = useToast();
   const registering = mode === 'register';
   const [values, setValues] = useState(initialValues);
   const [errors, setErrors] = useState({});
@@ -123,6 +125,9 @@ function AuthView({ mode, onModeChange, onAuthenticated }) {
         method: 'POST', body,
       });
       await onAuthenticated(result.user);
+      toast.success(registering ? 'Sua conta foi criada e já está pronta para uso.' : 'Você entrou no VagaFlow.', {
+        title: registering ? 'Conta criada' : 'Login realizado',
+      });
     } catch (error) {
       setErrors(Object.fromEntries(Object.entries(error.fields || {}).map(([key, messages]) => [key, messages[0]])));
       setFormError(error.status === 429
@@ -185,10 +190,29 @@ function AuthView({ mode, onModeChange, onAuthenticated }) {
 function TagField({ label, helper, values, onChange, placeholder, error }) {
   const [draft, setDraft] = useState('');
 
-  function addValue() {
-    const value = draft.trim().replace(/,$/, '');
-    if (value && !values.some((item) => item.toLowerCase() === value.toLowerCase())) onChange([...values, value]);
+  function addValues(input = draft) {
+    const entries = input
+      .split(/[\n,;]+/)
+      .map((value) => value.trim().replace(/^(?:[-*•]\s+|\d+[.)]\s+)/, ''))
+      .filter(Boolean);
+    const known = new Set(values.map((value) => value.toLowerCase()));
+    const additions = entries.filter((value) => {
+      const normalized = value.toLowerCase();
+      if (known.has(normalized)) return false;
+      known.add(normalized);
+      return true;
+    });
+
+    if (additions.length) onChange([...values, ...additions]);
     setDraft('');
+  }
+
+  function handlePaste(event) {
+    const pasted = event.clipboardData.getData('text');
+    if (!/[\n,;]/.test(pasted)) return;
+
+    event.preventDefault();
+    addValues(pasted);
   }
 
   return (
@@ -198,7 +222,7 @@ function TagField({ label, helper, values, onChange, placeholder, error }) {
       <div className={`tag-input${error ? ' input-wrap-error' : ''}`}>
         {values.map((value) => <span className="tag" key={value}>{value}<button type="button" onClick={() => onChange(values.filter((item) => item !== value))} aria-label={`Remover ${value}`}><X size={14} /></button></span>)}
         <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={values.length ? '' : placeholder}
-          onBlur={addValue} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ',') { event.preventDefault(); addValue(); } }} />
+          onPaste={handlePaste} onBlur={() => addValues()} onKeyDown={(event) => { if (['Enter', ',', ';'].includes(event.key)) { event.preventDefault(); addValues(); } }} />
       </div>
       {error && <p className="field-error">{error}</p>}
     </div>
@@ -268,12 +292,12 @@ const emptyProfile = {
 };
 
 function AutomationView({ onSessionExpired }) {
+  const toast = useToast();
   const [profile, setProfile] = useState(emptyProfile);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [errors, setErrors] = useState({});
-  const [message, setMessage] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -300,7 +324,6 @@ function AutomationView({ onSessionExpired }) {
   function update(field, value) {
     setProfile((current) => ({ ...current, [field]: value }));
     setErrors((current) => ({ ...current, [field]: undefined, form: undefined }));
-    setMessage('');
   }
 
   async function uploadResume(event) {
@@ -323,7 +346,7 @@ function AutomationView({ onSessionExpired }) {
     try {
       const result = await apiFormRequest('/api/automation/resume', body);
       setProfile((current) => ({ ...current, ...result.data, is_active: false, is_ready: false }));
-      setMessage(result.message);
+      toast.success(result.message, { title: 'Currículo recebido' });
     } catch (error) {
       setErrors((current) => ({ ...current, resume: error.fields?.resume?.[0] || error.message }));
     } finally {
@@ -346,7 +369,7 @@ function AutomationView({ onSessionExpired }) {
         is_active: false,
         is_ready: false,
       }));
-      setMessage('Currículo removido e automação pausada.');
+      toast.info('Currículo removido e automação pausada.', { title: 'Currículo removido' });
     } catch (error) {
       setErrors((current) => ({ ...current, resume: error.message }));
     } finally {
@@ -361,7 +384,7 @@ function AutomationView({ onSessionExpired }) {
     try {
       const { data } = await apiRequest('/api/automation/resume/retry', { method: 'POST' });
       setProfile((current) => ({ ...current, ...data, is_active: false, is_ready: false }));
-      setMessage('Nova leitura enviada para processamento.');
+      toast.info('Nova leitura enviada para processamento.', { title: 'Processamento iniciado' });
     } catch (error) {
       setErrors((current) => ({ ...current, resume: error.fields?.resume?.[0] || error.message }));
     } finally {
@@ -373,13 +396,14 @@ function AutomationView({ onSessionExpired }) {
     event.preventDefault();
     setSaving(true);
     setErrors({});
-    setMessage('');
     try {
       const fields = ['is_active', 'job_titles', 'areas', 'seniorities', 'technologies', 'excluded_keywords', 'work_modes', 'platforms', 'employment_types', 'easy_apply_only', 'locations', 'minimum_score'];
       const body = Object.fromEntries(fields.map((field) => [field, profile[field]]));
       const { data } = await apiRequest('/api/automation', { method: 'PUT', body });
       setProfile((current) => ({ ...current, ...data }));
-      setMessage(data.is_active ? 'Automação salva e ativa.' : 'Configuração salva.');
+      toast.success(data.is_active ? 'Automação salva e ativa.' : 'Configuração salva.', {
+        title: data.is_active ? 'Automação ativa' : 'Alterações salvas',
+      });
     } catch (error) {
       const fieldErrors = Object.fromEntries(Object.entries(error.fields || {}).map(([key, list]) => [key, list[0]]));
       setErrors(Object.keys(fieldErrors).length ? fieldErrors : { form: error.message });
@@ -427,7 +451,6 @@ function AutomationView({ onSessionExpired }) {
         <section className="activation-row"><div><strong>Ativar automação</strong><p>{profile.resume_parse_status === 'ready' ? 'Novas vagas serão avaliadas usando estes critérios.' : 'Aguarde a organização do currículo antes de ativar.'}</p></div><label className="switch"><input type="checkbox" checked={profile.is_active} disabled={profile.resume_parse_status !== 'ready'} onChange={(event) => update('is_active', event.target.checked)} /><span /></label></section>
         {errors.is_active && <p className="field-error" role="alert">{errors.is_active}</p>}
         {errors.form && <p className="form-error" role="alert">{errors.form}</p>}
-        {message && <p className="success-message" role="status">{message}</p>}
         <div className="config-actions"><button className="primary-button" type="submit" disabled={saving}>{saving ? 'Salvando...' : 'Salvar configuração'}</button></div>
       </form>
   );
@@ -557,10 +580,10 @@ function JobsView({ user, currentPath, onSessionExpired, onConfigure, onNavigate
 }
 
 export default function App() {
+  const toast = useToast();
   const [mode, setMode] = useState(window.location.pathname === '/cadastro' ? 'register' : 'login');
   const [user, setUser] = useState(null);
   const [checkingSession, setCheckingSession] = useState(true);
-  const [connectionError, setConnectionError] = useState('');
   const [path, setPath] = useState(window.location.pathname);
 
   async function refreshSession() {
@@ -571,7 +594,7 @@ export default function App() {
     refreshSession().then((session) => {
       setUser(session.user);
     })
-      .catch(() => setConnectionError('Não foi possível conectar ao servidor.'))
+      .catch(() => toast.error('Não foi possível conectar ao servidor.'))
       .finally(() => setCheckingSession(false));
 
     const handleHistory = () => { setMode(window.location.pathname === '/cadastro' ? 'register' : 'login'); setPath(window.location.pathname); };
@@ -617,7 +640,7 @@ export default function App() {
         await apiRequest('/api/session', { method: 'DELETE' });
         returnToLogin();
       } catch {
-        setConnectionError('Não foi possível sair agora. Tente novamente.');
+        toast.error('Não foi possível sair agora. Tente novamente.');
       }
     };
 
@@ -648,9 +671,7 @@ export default function App() {
     );
   }
 
-  return <>
-    {connectionError && <div className="connection-alert" role="alert">{connectionError}</div>}
-    <AuthView mode={mode} onModeChange={changeMode} onAuthenticated={async () => {
+  return <AuthView mode={mode} onModeChange={changeMode} onAuthenticated={async () => {
       const session = await refreshSession();
 
       if (!session.user) {
@@ -661,6 +682,5 @@ export default function App() {
       setPath('/');
       setUser(session.user);
     }}
-    />
-  </>;
+    />;
 }

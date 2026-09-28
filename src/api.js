@@ -1,3 +1,9 @@
+const apiBaseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+
+export function apiUrl(path) {
+  return `${apiBaseUrl}${path}`;
+}
+
 async function readJson(response) {
   const contentType = response.headers.get('content-type') || '';
   return contentType.includes('application/json') ? response.json() : null;
@@ -9,7 +15,7 @@ function xsrfToken() {
 }
 
 export async function initializeCsrf() {
-  const response = await fetch('/sanctum/csrf-cookie', {
+  const response = await fetch(apiUrl('/sanctum/csrf-cookie'), {
     credentials: 'include',
     headers: { Accept: 'application/json' },
   });
@@ -21,7 +27,7 @@ export async function initializeCsrf() {
 
 export async function getSession() {
   await initializeCsrf();
-  const response = await fetch('/api/session', {
+  const response = await fetch(apiUrl('/api/session'), {
     credentials: 'include',
     headers: { Accept: 'application/json' },
   });
@@ -38,7 +44,7 @@ export async function apiRequest(path, { method = 'GET', body } = {}) {
     await initializeCsrf();
   }
 
-  const response = await fetch(path, {
+  const response = await fetch(apiUrl(path), {
     method,
     credentials: 'include',
     headers: {
@@ -64,7 +70,7 @@ export async function apiRequest(path, { method = 'GET', body } = {}) {
 export async function apiFormRequest(path, formData) {
   if (!xsrfToken()) await initializeCsrf();
 
-  const response = await fetch(path, {
+  const response = await fetch(apiUrl(path), {
     method: 'POST',
     credentials: 'include',
     headers: {

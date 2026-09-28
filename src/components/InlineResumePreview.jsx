@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Download, FileText, Share2 } from 'lucide-react';
 import PdfDocumentPreview from './PdfDocumentPreview.jsx';
+import { apiUrl } from '../api.js';
 
 function fileName(job) {
   const slug = job.title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -20,7 +21,7 @@ export default function InlineResumePreview({ job }) {
     let active = true;
     setLoading(true);
 
-    fetch(`/api/jobs/${job.id}/resume`, { credentials: 'include', headers: { Accept: 'application/pdf' } })
+    fetch(apiUrl(`/api/jobs/${job.id}/resume`), { credentials: 'include', headers: { Accept: 'application/pdf' } })
       .then((response) => {
         if (!response.ok) throw new Error('Não foi possível gerar o currículo.');
         return response.blob();

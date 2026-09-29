@@ -83,6 +83,7 @@ export default function PdfDocumentPreview({ blob, zoom, onDocumentLoaded, onPag
       setDocument(loadedDocument);
       onDocumentLoaded(loadedDocument.numPages);
     }).catch((error) => {
+      console.error('Falha ao carregar o preview do currículo.', error);
       if (active) onError(error);
     });
 

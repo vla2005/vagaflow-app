@@ -59,10 +59,11 @@ export async function enablePushNotifications() {
     applicationServerKey: urlBase64ToUint8Array(configuration.public_key),
   });
   const serialized = subscription.toJSON();
+  const contentEncoding = window.PushManager.supportedContentEncodings?.[0] || 'aes128gcm';
 
   await apiRequest('/api/push-subscriptions', {
     method: 'POST',
-    body: { ...serialized, content_encoding: 'aes128gcm' },
+    body: { ...serialized, content_encoding: contentEncoding },
   });
 
   return notificationStatus();

@@ -71,8 +71,15 @@ export default function InlineResumePreview({ job }) {
 
       <div className="pdf-preview-shell">
         {loading && <div className="pdf-loading"><span /><p>Gerando visualização...</p></div>}
-        {error && <p className="form-error">{error}</p>}
-        {blob && (
+        {error && <p className="form-error">{error} Usando o visualizador do dispositivo.</p>}
+        {error && resumeUrl && (
+          <iframe
+            className="pdf-native-fallback"
+            src={`${resumeUrl}#toolbar=0&navpanes=0`}
+            title="Visualização nativa do currículo"
+          />
+        )}
+        {blob && !error && (
           <PdfDocumentPreview
             blob={blob}
             zoom={zoom}

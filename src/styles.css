@@ -907,6 +907,7 @@ a { color: inherit; }
 }
 .pdf-page { display: flex; justify-content: center; min-width: max-content; }
 .pdf-page canvas { display: block; max-width: none; background: #fff; box-shadow: 0 5px 18px rgb(20 35 27 / 12%); }
+.pdf-native-fallback { display: block; width: 100%; min-height: 720px; border: 0; background: #fff; }
 .pdf-loading { display: grid; place-items: center; min-height: 560px; color: #6a756f; }
 .pdf-loading span { width: 34px; height: 34px; border: 3px solid #d6ded9; border-top-color: #087849; border-radius: 50%; animation: refresh-spin .8s linear infinite; }
 .pdf-loading p { margin-top: -220px; }
